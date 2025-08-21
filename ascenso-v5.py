@@ -195,7 +195,7 @@ init_db()
 st.set_page_config(page_title="Actividades de refuerzo con IA", layout="centered")
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    model = genai.GenerativeModel('gemini-2.5-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash')
 except Exception as e:
     st.error(f"Error al configurar la API de Google: {e}")
     st.stop()
