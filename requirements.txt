@@ -1,0 +1,4 @@
+streamlit
+google.generativeai
+sqlite3
+pandas
