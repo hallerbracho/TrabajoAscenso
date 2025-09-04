@@ -8,6 +8,7 @@ from libsql_client import create_client_sync, Statement
 import pandas as pd
 from datetime import datetime
 import math
+from zoneinfo import ZoneInfo
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import random
 
@@ -296,7 +297,10 @@ def save_result_to_db(student_name, profile_name, variant_name, score, total_que
     INSERT INTO quiz_results (student_name, profile_name, variant_name, score, total_questions, grade, timestamp)
     VALUES (?, ?, ?, ?, ?, ?, ?)
     """
-    client.execute(sql, (student_name, profile_name, variant_name, score, total_questions, grade, datetime.now().isoformat()))
+    # Obtiene la hora actual especificando la zona horaria de Venezuela
+    now_in_venezuela = datetime.now(ZoneInfo("America/Caracas"))
+    
+    client.execute(sql, (student_name, profile_name, variant_name, score, total_questions, grade, now_in_venezuela.isoformat()))
     client.close()
     get_results_by_profile_as_df.clear()
 
