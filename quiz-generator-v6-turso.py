@@ -984,7 +984,7 @@ with tab_examen:
             if not st.session_state.respuesta_enviada:
                 resp_usr = st.radio("Respuesta:", opciones.keys(), format_func=lambda k: f"{k}: {opciones.get(k, '')}", key=f"r_{idx}")
             
-            if st.form_submit_button("Enviar Respuesta"):
+            if st.form_submit_button("Enviar Respuesta", disabled=st.session_state.respuesta_enviada):
                 st.session_state.respuesta_enviada = True
                 st.session_state.respuestas_usuario[idx] = resp_usr
                 if resp_usr == q_info.get('respuesta_correcta'): st.session_state.puntaje += 1
