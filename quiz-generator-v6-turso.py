@@ -12,6 +12,14 @@ from zoneinfo import ZoneInfo
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import random
 
+with st.sidebar:	
+    #st.header("Opciones de Calendario")
+    #st.image("https://uru.edu/wp-content/uploads/2023/02/uru-logo-maracaibo.png")
+    st.image("https://luz.unir.edu.ve/wp-content/uploads/2024/04/escudo-Hor-gris-1024x427-1.png")
+    st.subheader("Actividades formativas de refuerzo")
+    st.html("<p>Departamento de Matemática<br>Facultad Experimental de Ciencias<br>La Universidad del Zulia</p>")
+    #fecha2 = st.date_input("Calendario escolar", value="today", format="DD/MM/YYYY", width="stretch")
+
 # --- Constantes para la configuración de IA (sin cambios) ---
 DEFAULT_IA_MODEL = 'models/gemini-2.5-pro'
 DEFAULT_IA_PROMPT = """
@@ -30,7 +38,7 @@ Tu única salida debe ser un bloque de código JSON 100% válido. No escribas na
     -   Párrafo 1: Explicación amplia y detallada del concepto y su importancia en un escenario real. **Palabras clave en negrita**. Incluir enlace `[Más información](URL_YOUTUBE_SEARCH)`.
     -   Párrafo 2: **La pregunta en sí, en negrita**.
 4.  **ESTRUCTURA DE "opciones":** Objeto JSON con 4 claves: "A", "B", "C", "D".
-5.  **REGLA DE LATEX:** Usa LaTeX con signos de dólar ($...$). En el JSON, escapa todas las barras `\` con `\\`. Ejemplo: `\\frac{{1}}{{2}}`.
+5.  **REGLA DE LATEX:** Usa LaTeX con signos de dólar ($...$). En el JSON, escapa todas las barras ´\´ con ´\\´. Ejemplo: ´\\frac{{1}}{{2}}´.
 6.  **REGLAS DE "explicacion":**
     -   Debe ser un tutorial paso a paso.
     -   **PROHIBIDO:** No expliques las opciones incorrectas. No describas tu proceso de creación. No uses preguntas retóricas. Sé directo.
@@ -67,59 +75,80 @@ def create_turso_client():
 
 
 def init_db():
-    """Inicializa la base de datos y crea las tablas e índices si no existen."""
+    """
+    Inicializa la base de datos, crea las tablas si no existen y
+    realiza migraciones de esquema necesarias, como añadir nuevas columnas.
+    """
     client = create_turso_client()
-    # MODIFICADO: Se utiliza Statement() directamente
-    statements = [
-        Statement("""
-            CREATE TABLE IF NOT EXISTS quiz_configs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_name TEXT NOT NULL,
-                variant_name TEXT NOT NULL,
-                asignatura TEXT,
-                temas TEXT,
-                num_preguntas INTEGER,
-                dificultad TEXT,
-                UNIQUE(profile_name, variant_name)
-            )
-        """),
-        Statement("""
-            CREATE TABLE IF NOT EXISTS global_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            )
-        """),
-        Statement("""
-            CREATE TABLE IF NOT EXISTS quiz_results (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_name TEXT NOT NULL,
-                profile_name TEXT NOT NULL,
-                variant_name TEXT NOT NULL,
-                score INTEGER NOT NULL,
-                total_questions INTEGER NOT NULL,
-                grade REAL NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """),
-        Statement("""
-            CREATE TABLE IF NOT EXISTS generated_quizzes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                config_id INTEGER NOT NULL,
-                quiz_data_json TEXT NOT NULL,
-                is_active INTEGER DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (config_id) REFERENCES quiz_configs (id) ON DELETE CASCADE
-            )
-        """),
-        Statement("CREATE INDEX IF NOT EXISTS idx_quizzes_config_id ON generated_quizzes (config_id)"),
-        Statement("CREATE INDEX IF NOT EXISTS idx_quizzes_active ON generated_quizzes (is_active)"),
-        Statement("CREATE INDEX IF NOT EXISTS idx_results_profile ON quiz_results (profile_name)"),
-        Statement("CREATE INDEX IF NOT EXISTS idx_results_grade_time ON quiz_results (grade, timestamp)"),
-    ]
     try:
-        client.batch(statements)
+        # 1. Ejecutar las creaciones de tablas estándar
+        # NOTA: La tabla quiz_results ahora se crea con las nuevas columnas si no existe.
+        create_statements = [
+            Statement("""
+                CREATE TABLE IF NOT EXISTS quiz_configs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    profile_name TEXT NOT NULL,
+                    variant_name TEXT NOT NULL,
+                    asignatura TEXT,
+                    temas TEXT,
+                    num_preguntas INTEGER,
+                    dificultad TEXT,
+                    show_feedback INTEGER DEFAULT 1,
+                    UNIQUE(profile_name, variant_name)
+                )
+            """),
+            Statement("CREATE TABLE IF NOT EXISTS global_settings (key TEXT PRIMARY KEY, value TEXT)"),
+            Statement("""
+                CREATE TABLE IF NOT EXISTS quiz_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_name TEXT NOT NULL,
+                    profile_name TEXT NOT NULL,
+                    variant_name TEXT NOT NULL,
+                    score INTEGER NOT NULL,
+                    total_questions INTEGER NOT NULL,
+                    grade REAL NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    quiz_snapshot_json TEXT,
+                    student_answers_json TEXT
+                )
+            """),
+            Statement("""
+                CREATE TABLE IF NOT EXISTS generated_quizzes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    config_id INTEGER NOT NULL,
+                    quiz_data_json TEXT NOT NULL,
+                    is_active INTEGER DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (config_id) REFERENCES quiz_configs (id) ON DELETE CASCADE
+                )
+            """),
+            Statement("CREATE INDEX IF NOT EXISTS idx_quizzes_config_id ON generated_quizzes (config_id)"),
+            Statement("CREATE INDEX IF NOT EXISTS idx_quizzes_active ON generated_quizzes (is_active)"),
+            Statement("CREATE INDEX IF NOT EXISTS idx_results_profile ON quiz_results (profile_name)"),
+            Statement("CREATE INDEX IF NOT EXISTS idx_results_grade_time ON quiz_results (grade, timestamp)"),
+        ]
+        client.batch(create_statements)
+
+        # 2. Realizar migraciones para bases de datos antiguas
+        rs = client.execute("PRAGMA table_info(quiz_results)")
+        columns = [row[1] for row in rs.rows]
+
+        migration_statements = []
+        if 'show_feedback' not in [c[1] for c in client.execute("PRAGMA table_info(quiz_configs)").rows]:
+             migration_statements.append(Statement("ALTER TABLE quiz_configs ADD COLUMN show_feedback INTEGER DEFAULT 1"))
+        if 'quiz_snapshot_json' not in columns:
+            migration_statements.append(Statement("ALTER TABLE quiz_results ADD COLUMN quiz_snapshot_json TEXT"))
+        if 'student_answers_json' not in columns:
+            migration_statements.append(Statement("ALTER TABLE quiz_results ADD COLUMN student_answers_json TEXT"))
+
+        if migration_statements:
+            st.warning("Detectada una versión antigua de la base de datos. Actualizando esquema...")
+            client.batch(migration_statements)
+            st.success("¡Esquema de la base de datos actualizado correctamente!")
+            time.sleep(2)
+
     except Exception as e:
-        st.error(f"Error al inicializar la base de datos: {e}")
+        st.error(f"Error al inicializar o migrar la base de datos: {e}")
     finally:
         client.close()
 
@@ -193,20 +222,21 @@ def load_config_from_db(config_id):
         return config
     return None
 
-def save_config_to_db(profile_name, variant_name, asignatura, temas, num_preguntas, dificultad):
+def save_config_to_db(profile_name, variant_name, asignatura, temas, num_preguntas, dificultad, show_feedback):
     """Guarda (inserta o actualiza) una configuración/variante en la DB."""
     client = create_turso_client()
     temas_json = json.dumps(temas)
     sql = """
-    INSERT INTO quiz_configs (profile_name, variant_name, asignatura, temas, num_preguntas, dificultad)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO quiz_configs (profile_name, variant_name, asignatura, temas, num_preguntas, dificultad, show_feedback)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(profile_name, variant_name) DO UPDATE SET
         asignatura=excluded.asignatura,
         temas=excluded.temas,
         num_preguntas=excluded.num_preguntas,
-        dificultad=excluded.dificultad
+        dificultad=excluded.dificultad,
+        show_feedback=excluded.show_feedback
     """
-    client.execute(sql, (profile_name, variant_name, asignatura, temas_json, num_preguntas, dificultad))
+    client.execute(sql, (profile_name, variant_name, asignatura, temas_json, num_preguntas, dificultad, int(show_feedback)))
     client.close()
     get_all_profiles.clear()
     get_variants_for_profile.clear()
@@ -290,17 +320,23 @@ def set_quiz_activation_status(config_id, is_active):
     get_active_quiz_for_config.clear()
     get_variants_with_status_for_profile.clear()
 
-def save_result_to_db(student_name, profile_name, variant_name, score, total_questions, grade):
-    """Guarda el resultado de un quiz en la base de datos."""
+def save_result_to_db(student_name, profile_name, variant_name, score, total_questions, grade, quiz_snapshot, student_answers):
+    """Guarda el resultado de un quiz, incluyendo el snapshot y las respuestas."""
     client = create_turso_client()
     sql = """
-    INSERT INTO quiz_results (student_name, profile_name, variant_name, score, total_questions, grade, timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO quiz_results (
+        student_name, profile_name, variant_name, score, total_questions, grade, timestamp,
+        quiz_snapshot_json, student_answers_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
-    # Obtiene la hora actual especificando la zona horaria de Venezuela
     now_in_venezuela = datetime.now(ZoneInfo("America/Caracas"))
-    
-    client.execute(sql, (student_name, profile_name, variant_name, score, total_questions, grade, now_in_venezuela.isoformat()))
+    quiz_snapshot_json = json.dumps(quiz_snapshot)
+    student_answers_json = json.dumps(student_answers)
+
+    client.execute(sql, (
+        student_name, profile_name, variant_name, score, total_questions, grade,
+        now_in_venezuela.isoformat(), quiz_snapshot_json, student_answers_json
+    ))
     client.close()
     get_results_by_profile_as_df.clear()
 
@@ -331,7 +367,8 @@ def clear_all_results_from_db():
 init_db()
 
 # --- CONFIGURACIÓN DE LA PÁGINA Y API ---
-st.set_page_config(page_title="Actividades de refuerzo con IA", layout="centered")
+st.set_page_config(page_title="Actividades de refuerzo", layout="centered")
+#st.set_page_config(page_title="Actividades de refuerzo", layout="wide")
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 except Exception as e:
@@ -475,7 +512,7 @@ def clear_review_state():
 
 def admin_panel():
     tab_anuncios, tab_gestion_config, tab_activar_quiz, tab_opciones = st.tabs(
-        ["📢 Anuncios", "📚 Gestionar Configuraciones", "✅ Generar y Activar Actividades", "⚙️ Opciones Avanzadas"]
+        [":clipboard: Anuncios", "📚 Gestionar Configuraciones", "✅ Generar y Activar Actividades", "⚙️ Opciones Avanzadas"]
     )
 
     with tab_anuncios:
@@ -514,7 +551,7 @@ def admin_panel():
                 profile_name_input = st.text_input("Nombre nueva asignatura", placeholder="Asignatura nueva")
             with coll2:
                 variant_name_input = st.text_input("Unidad de aprendizaje", placeholder="#1: Nombre del tema general")
-            config_data = {'asignatura': '', 'temas': [], 'num_preguntas': 7, 'dificultad': 'fácil/intermedio'}
+            config_data = {'asignatura': '', 'temas': [], 'num_preguntas': 7, 'dificultad': 'fácil/intermedio', 'show_feedback': 1}
         else:
             profile_name_input = selected_parent_profile
             st.subheader(f"Gestionar unidades de: {selected_parent_profile}")
@@ -533,7 +570,7 @@ def admin_panel():
             
             if selected_config_id == create_variant_option_id:
                 variant_name_input = st.text_input("Nombre de la Nueva Unidad:")
-                config_data = {'asignatura': '', 'temas': [], 'num_preguntas': 7, 'dificultad': 'fácil/intermedio'}
+                config_data = {'asignatura': '', 'temas': [], 'num_preguntas': 7, 'dificultad': 'fácil/intermedio', 'show_feedback': 1}
             else:
                 config_data = load_config_from_db(selected_config_id)
                 variant_name_input = config_data.get('variant_name', '')
@@ -542,14 +579,19 @@ def admin_panel():
             asignatura = st.text_input("Nombre completo de la asignatura", value=config_data.get('asignatura', ''))
             temas_input = st.text_area("Temas (separados por comas)", value=", ".join(config_data.get('temas', [])), height=100)
             c1, c2 = st.columns(2)
-            num_preguntas = c1.number_input("Nº de preguntas", 3, 12, config_data.get('num_preguntas', 7))
+            num_preguntas = c1.number_input("Nº de preguntas", 3, 15, config_data.get('num_preguntas', 7))
             dificultad_options = ["fácil/intermedio", "intermedio/avanzado", "avanzado/difícil"]
             try:
                 current_dificultad_index = dificultad_options.index(config_data.get('dificultad', 'fácil/intermedio'))
             except ValueError: current_dificultad_index = 1
             dificultad = c2.selectbox("Dificultad", dificultad_options, index=current_dificultad_index)
             
-            st.caption("Recomendación: Para una clase formativa de aprendizaje elije mas preguntas con dificultad baja, mientras que para una clase evaluativa elije menos preguntas con dificultad alta")
+            show_feedback_toggle = st.toggle(
+                "Mostrar retroalimentación inmediata",
+                value=bool(config_data.get('show_feedback', 1)),
+                help="Si está activo, los estudiantes verán la respuesta correcta y la explicación después de cada pregunta. Si no, solo verán la calificación final."
+            )
+            #st.caption("Recomendación: Para una clase formativa elije mas preguntas con dificultad baja, mientras que para una clase evaluativa elije menos preguntas con dificultad alta")
             
             submitted = st.form_submit_button("Guardar Configuración", type="secondary")
             if submitted:
@@ -557,7 +599,7 @@ def admin_panel():
                     st.error("El nombre de la asignatura y de la unidad no pueden estar vacíos.")
                 else:
                     temas_lista = [t.strip() for t in temas_input.split(',') if t.strip()]
-                    save_config_to_db(profile_name_input, variant_name_input, asignatura, temas_lista, num_preguntas, dificultad)
+                    save_config_to_db(profile_name_input, variant_name_input, asignatura, temas_lista, num_preguntas, dificultad, show_feedback_toggle)
                     st.success(f"¡Configuración '{profile_name_input} - {variant_name_input}' guardada correctamente!")
                     time.sleep(1)
                     st.rerun()
@@ -617,7 +659,7 @@ def admin_panel():
                         st.radio(label="**Respuesta Correcta**", options=opciones_keys, index=opciones_keys.index(q_data['respuesta_correcta']) if q_data['respuesta_correcta'] in opciones_keys else 0, key=f"review_q{i}_correcta", horizontal=True)
                         st.text_area(label="Explicación", value=q_data['explicacion'], key=f"review_q{i}_explicacion", height=150)
 
-                submitted = st.form_submit_button("✅ Aprobar y Activar Cambios", type="primary", use_container_width=True)
+                submitted = st.form_submit_button("✅ Aprobar y Activar Cambios", type="primary", width='stretch')
                 if submitted:
                     edited_quiz_content = []
                     for i in range(len(quiz_content)):
@@ -637,7 +679,7 @@ def admin_panel():
                     time.sleep(2)
                     st.rerun()
 
-            if st.button("❌ Descartar y Volver", use_container_width=True):
+            if st.button("❌ Descartar y Volver", width='stretch'):
                 clear_review_state()
                 st.info("Generación descartada. Volviendo a la selección.")
                 time.sleep(1)
@@ -672,7 +714,7 @@ def admin_panel():
                                     st.warning("⚠️ Inactiva")
 
                             with col2:
-                                if st.button("Generar", key=f"gen_{config_id}", use_container_width=True, help="Crea una nueva versión con IA para revisarla y activarla."):
+                                if st.button("Generar", key=f"gen_{config_id}", width='stretch', help="Crea una nueva versión con IA para revisarla y activarla."):
                                     config = load_config_from_db(config_id)
                                     with st.spinner(f"Generando ..."):
                                         quiz_content = generar_quiz_con_ia(config)
@@ -685,7 +727,7 @@ def admin_panel():
 
                             with col3:
                                 if quiz_has_been_generated:
-                                    if st.button("Editar", key=f"edit_{config_id}", use_container_width=True, help="Edita la versión más reciente de esta actividad (activa o inactiva)."):
+                                    if st.button("Editar", key=f"edit_{config_id}", width='stretch', help="Edita la versión más reciente de esta actividad (activa o inactiva)."):
                                         latest_quiz_data = get_latest_quiz_for_config(config_id)
                                         if latest_quiz_data:
                                             st.session_state.quiz_for_review = {
@@ -733,7 +775,7 @@ def admin_panel():
                 value=current_model,
                 help="Especifica el identificador del modelo de Google AI que se usará para generar las preguntas."
             )
-            st.caption("Modelos recomendados: `models/gemini-2.5-flash` (rápido y eficiente), `models/gemini-2.5-pro` (más potente).")
+            st.caption("Modelos recomendados: `models/gemini-1.5-flash-latest` (rápido y eficiente), `models/gemini-1.5-pro-latest` (más potente).")
 
             new_prompt = st.text_area(
                 "Prompt de Sistema para la IA",
@@ -742,7 +784,7 @@ def admin_panel():
                 help="Este es el conjunto de instrucciones que sigue la IA. Usa las variables {asignatura}, {temas_str}, {num_preguntas}, y {dificultad} que serán reemplazadas dinámicamente."
             )
 
-            submitted = st.form_submit_button("Guardar Configuración de IA", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("Guardar Configuración de IA", type="primary", width='stretch')
             if submitted:
                 save_global_setting('ia_model', new_model)
                 save_global_setting('ia_prompt', new_prompt)
@@ -796,7 +838,7 @@ if 'nombre_estudiante' not in st.session_state: st.session_state.nombre_estudian
 if 'password_correct' not in st.session_state: st.session_state.password_correct = False
 
 # --- PANELES Y PESTAÑAS ---
-st.subheader("Actividades formativas de refuerzo", divider=True)
+#st.subheader("Actividades formativas de refuerzo", divider=True)
 tab_examen, tab_ranking, tab_admin = st.tabs(["Actividades", "Registro de participaciones", "Área del profesor"])
 
 with tab_admin:
@@ -805,83 +847,245 @@ with tab_admin:
     else:
         check_password()
 
-with tab_ranking:
-    col_title, col_button = st.columns([4, 1])
-    with col_title:
-        st.subheader("Registro de Participaciones", anchor=False)
-    with col_button:
-        if st.button("Refrescar", use_container_width=True, help="Vuelve a cargar los resultados desde la base de datos."):
-            get_results_by_profile_as_df.clear()
-            st.toast("¡Ranking actualizado!")
-            st.rerun()
+def display_attempt_review(attempt_details):
+    """Muestra la vista detallada de un intento de quiz."""
+    student_name = attempt_details['student_name']
+    st.header(f"Revisando la actividad de: {student_name}")
+    st.caption(f"Realizada el: {pd.to_datetime(attempt_details['timestamp']).strftime('%Y-%m-%d %H:%M')}")
+    st.info("A continuación se muestra cada pregunta tal como la vio el estudiante, junto con su respuesta y la corrección.")
+
+    quiz_snapshot = json.loads(attempt_details['quiz_snapshot_json'])
+    student_answers = json.loads(attempt_details['student_answers_json'])
+
+    for idx, question_data in enumerate(quiz_snapshot):
+        with st.container(border=True):
+            st.subheader(f"Pregunta {idx + 1}")
+            st.markdown(question_data['pregunta'])
+
+            student_answer_key = student_answers.get(str(idx)) # Las claves JSON pueden ser strings
+            correct_answer_key = question_data['respuesta_correcta']
+
+            st.markdown("---")
+            st.write("**Respuesta del estudiante:**")
+            if student_answer_key is None:
+                st.warning("El estudiante no respondió a esta pregunta.")
+            elif student_answer_key == correct_answer_key:
+                st.success(f"**{student_answer_key}:** {question_data['opciones'][student_answer_key]} (Correcta)")
+            else:
+                st.error(f"**{student_answer_key}:** {question_data['opciones'][student_answer_key]} (Incorrecta)")
+
+            st.write("**Respuesta correcta:**")
+            st.info(f"**{correct_answer_key}:** {question_data['opciones'][correct_answer_key]}")
+            
+            with st.expander("Ver explicación completa"):
+                st.markdown(question_data['explicacion'])
     
-    client = create_turso_client()
-    rs = client.execute("SELECT DISTINCT profile_name FROM quiz_results ORDER BY profile_name")
-    client.close()
-    profiles_with_results = [row[0] for row in rs.rows]
+    if st.button("← Volver al ranking"):
+        del st.session_state.reviewing_attempt_id
+        st.rerun()
 
-    if not profiles_with_results:
-        st.info("Aún no hay resultados para mostrar. ¡Sé el primero en completar un quiz!")
+def display_attempt_review(attempt_details):
+    """Muestra la vista detallada de un intento de quiz."""
+    student_name = attempt_details['student_name']
+    st.header(f"Revisando la actividad de: {student_name}")
+    st.caption(f"Realizada el: {pd.to_datetime(attempt_details['timestamp']).strftime('%Y-%m-%d %H:%M')}")
+    st.info("A continuación se muestra cada pregunta tal como la vio el estudiante, junto con su respuesta y la corrección.")
+
+    quiz_snapshot = json.loads(attempt_details['quiz_snapshot_json'])
+    student_answers = json.loads(attempt_details['student_answers_json'])
+
+    for idx, question_data in enumerate(quiz_snapshot):
+        with st.container(border=True):
+            st.subheader(f"Pregunta {idx + 1}")
+            st.markdown(question_data['pregunta'])
+
+            # Las claves de respuesta ahora se guardan como string '0', '1', etc.
+            student_answer_key = student_answers.get(str(idx)) 
+            correct_answer_key = question_data['respuesta_correcta']
+            
+            options = question_data.get('opciones', {})
+
+            st.markdown("---")
+            st.write("**Respuesta del estudiante:**")
+            if student_answer_key is None:
+                st.warning("El estudiante no respondió a esta pregunta.")
+            elif student_answer_key == correct_answer_key:
+                st.success(f"**{student_answer_key}:** {options.get(student_answer_key, 'Opción no encontrada')} (Correcta)")
+            else:
+                st.error(f"**{student_answer_key}:** {options.get(student_answer_key, 'Opción no encontrada')} (Incorrecta)")
+
+            st.write("**Respuesta correcta:**")
+            st.info(f"**{correct_answer_key}:** {options.get(correct_answer_key, 'Opción no encontrada')}")
+            
+            with st.expander("Ver explicación completa"):
+                st.markdown(question_data['explicacion'])
+    
+    if st.button("← Volver al ranking"):
+        del st.session_state.reviewing_attempt_id
+        st.rerun()
+
+# --- NUEVO BLOQUE 'with tab_ranking:' ---
+def display_attempt_review(attempt_details):
+    """Muestra la vista detallada de un intento de quiz."""
+    student_name = attempt_details['student_name']
+    st.header(f"Revisando la actividad de: {student_name}")
+    st.caption(f"Realizada el: {pd.to_datetime(attempt_details['timestamp']).strftime('%Y-%m-%d %H:%M')}")
+    st.info("A continuación se muestra cada pregunta tal como la vio el estudiante, junto con su respuesta y la corrección.")
+
+    quiz_snapshot = json.loads(attempt_details['quiz_snapshot_json'])
+    student_answers = json.loads(attempt_details['student_answers_json'])
+
+    for idx, question_data in enumerate(quiz_snapshot):
+        with st.container(border=True):
+            st.subheader(f"Pregunta {idx + 1}")
+            st.markdown(question_data['pregunta'])
+
+            student_answer_key = student_answers.get(str(idx)) 
+            correct_answer_key = question_data['respuesta_correcta']
+            options = question_data.get('opciones', {})
+
+            st.markdown("---")
+            st.write("**Respuesta del estudiante:**")
+            if student_answer_key is None:
+                st.warning("El estudiante no respondió a esta pregunta.")
+            elif student_answer_key == correct_answer_key:
+                st.success(f"**{student_answer_key}:** {options.get(student_answer_key, 'Opción no encontrada')} (Correcta)")
+            else:
+                st.error(f"**{student_answer_key}:** {options.get(student_answer_key, 'Opción no encontrada')} (Incorrecta)")
+
+            st.write("**Respuesta correcta:**")
+            st.info(f"**{correct_answer_key}:** {options.get(correct_answer_key, 'Opción no encontrada')}")
+            
+            with st.expander("Ver explicación completa"):
+                st.markdown(question_data['explicacion'])
+    
+    if st.button("← Volver al ranking"):
+        del st.session_state.reviewing_attempt_id
+        st.rerun()
+
+# --- BLOQUE 'with tab_ranking:' CON VISTAS CONDICIONALES ---
+with tab_ranking:
+    # 1. LÓGICA PARA MOSTRAR UNA REVISIÓN INDIVIDUAL (SÓLO PROFESOR)
+    if 'reviewing_attempt_id' in st.session_state and st.session_state.password_correct:
+        client = create_turso_client()
+        rs = client.execute("SELECT * FROM quiz_results WHERE id = ?", (st.session_state.reviewing_attempt_id,))
+        client.close()
+        if rs.rows:
+            attempt_details = {col: rs.rows[0][idx] for idx, col in enumerate(rs.columns)}
+            display_attempt_review(attempt_details)
+        else:
+            st.error("No se encontró el intento seleccionado.")
+            if st.button("Volver"): del st.session_state.reviewing_attempt_id; st.rerun()
+    
+    # 2. VISTA PRINCIPAL DEL RANKING (LÓGICA COMÚN Y LUEGO CONDICIONAL)
     else:
-        profile_tabs = st.tabs(profiles_with_results)
-        for i, profile_name in enumerate(profiles_with_results):
-            with profile_tabs[i]:
-                full_results_df = get_results_by_profile_as_df(profile_name)
-                variants_with_results = sorted(full_results_df['variant_name'].unique().tolist())
-                all_variants_option = "-- Todas las Unidades --"
-                
-                selected_variant = st.selectbox(
-                    "Filtrar por Unidad:",
-                    options=[all_variants_option] + variants_with_results,
-                    key=f"variant_filter_{profile_name}"
-                )
+        col_title, col_button = st.columns([4, 1])
+        with col_title:
+            st.subheader("Participaciones por asignatura", anchor=False)
+        with col_button:
+            if st.button("Refrescar", width='stretch', help="Vuelve a cargar los resultados desde la base de datos."):
+                get_results_by_profile_as_df.clear(); st.toast("¡Registro actualizado!"); st.rerun()
 
-                if selected_variant == all_variants_option:
-                    df_to_display = full_results_df
-                else:
-                    df_to_display = full_results_df[full_results_df['variant_name'] == selected_variant]
-                
-                total_rows = len(df_to_display)
+        client = create_turso_client(); rs = client.execute("SELECT DISTINCT profile_name FROM quiz_results ORDER BY profile_name"); client.close()
+        profiles_with_results = [row[0] for row in rs.rows]
 
-                with st.expander("Estadísticas generales", icon=":material/thumb_up:"):
-                    avg_grade = df_to_display['grade'].mean() if not df_to_display.empty else 0
-                    highest_grade = df_to_display['grade'].max() if not df_to_display.empty else 0
-                    col1, col2, col3 = st.columns(3)
-                    col1.metric("Total de Participaciones", total_rows)
-                    col2.metric("Calificación Promedio", f"{avg_grade:.2f}")
-                    col3.metric("Mejor Calificación", f"{highest_grade:.2f}")
-
-                st.subheader("Participaciones", divider=True)
-
-                if total_rows == 0:
-                    st.info("No hay registros que coincidan con el filtro seleccionado.")
-                else:
-                    page_size = 10
-                    total_pages = math.ceil(total_rows / page_size) if total_rows > 0 else 1
-                    page_number = st.number_input(
-                        "Página", min_value=1, max_value=total_pages, step=1, key=f"page_{profile_name}"
-                    )
+        if not profiles_with_results:
+            st.info("Aún no hay resultados para mostrar.")
+        else:
+            profile_tabs = st.tabs(profiles_with_results)
+            for i, profile_name in enumerate(profiles_with_results):
+                with profile_tabs[i]:
+                    full_results_df = get_results_by_profile_as_df(profile_name)
+                    variants_with_results = sorted(full_results_df['variant_name'].unique().tolist())
+                    all_variants_option = "-- Todas las Unidades --"
                     
-                    offset = (page_number - 1) * page_size
-                    paginated_df = df_to_display.iloc[offset : offset + page_size]
+                    selected_variant = st.selectbox("Filtrar por unidad: ", [all_variants_option] + variants_with_results, key=f"variant_filter_{profile_name}")
 
-                    paginated_df.rename(columns={
-                        'student_name': 'Estudiante', 'variant_name': 'Unidad',
-                        'grade': 'Calificación (20)', 'score': 'Aciertos',
-                        'total_questions': 'Preguntas', 'timestamp': 'Fecha'
-                    }, inplace=True)
-                    paginated_df['Fecha'] = pd.to_datetime(paginated_df['Fecha']).dt.strftime('%Y-%m-%d %H:%M')
-                    paginated_df['Calificación (20)'] = paginated_df['Calificación (20)'].map('{:.2f}'.format)
-                    paginated_df['Puntaje'] = paginated_df['Aciertos'].astype(str) + '/' + paginated_df['Preguntas'].astype(str)
+                    df_to_display = full_results_df if selected_variant == all_variants_option else full_results_df[full_results_df['variant_name'] == selected_variant]
                     
-                    display_columns = ['Estudiante', 'Unidad', 'Puntaje', 'Calificación (20)', 'Fecha']
-                    st.markdown("\n")
-                    st.dataframe(paginated_df[display_columns], use_container_width=True, hide_index=True)
-                    st.caption(f"Mostrando {len(paginated_df)} resultados en la página {page_number} de {total_pages}.")
+                    # Estadísticas solo visibles para el profesor
+                    if st.session_state.password_correct:
+                        #with st.expander("Estadísticas generales", icon="📊", expanded=True):
+                        avg_grade = df_to_display['grade'].mean() if not df_to_display.empty else 0
+                        highest_grade = df_to_display['grade'].max() if not df_to_display.empty else 0
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("Total de Participaciones", len(df_to_display), border=True)
+                        col2.metric("Calificación Promedio", f"{avg_grade:.2f}", border=True)
+                        col3.metric("Mejor Calificación", f"{highest_grade:.2f}", border=True)
+
+                    #st.subheader("Participaciones Recientes", divider=True)
+                    st.text("\n")
+
+                    if df_to_display.empty:
+                        st.info("No hay registros que coincidan con el filtro seleccionado.")
+                    else:
+                        page_size = 10 if st.session_state.password_correct else 7 # Más filas para la vista de tabla
+                        page_key = f"page_number_{profile_name}_{selected_variant}"
+                        st.session_state.setdefault(page_key, 1)
+
+                        total_rows = len(df_to_display)
+                        total_pages = math.ceil(total_rows / page_size) if total_rows > 0 else 1
+                        
+                        if st.session_state[page_key] > total_pages: st.session_state[page_key] = total_pages
+
+                        offset = (st.session_state[page_key] - 1) * page_size
+                        paginated_df = df_to_display.iloc[offset : offset + page_size]
+
+                        # --- VISTAS CONDICIONALES ---
+                        if st.session_state.password_correct:
+                            # --- VISTA DE TARJETAS PARA EL PROFESOR ---
+                            for _, row in paginated_df.iterrows():
+                                with st.container(border=True):
+                                    c1, c2, c3, c4 = st.columns([2, 1, 1, 1.2])
+                                    with c1:
+                                        st.markdown(f"**{row['student_name']}**")
+                                        st.caption(f"Unidad: {row['variant_name']}")
+                                        fecha = pd.to_datetime(row['timestamp']).strftime('%d de %b, %Y - %H:%M')
+                                        st.caption(fecha)
+                                    with c2:
+                                        st.metric(label="Aciertos", value=f"{row['score']}/{row['total_questions']}")
+                                    with c3:
+                                        grade_value = row['grade']
+                                        delta_color = "normal" if grade_value >= 9.5 else "inverse"
+                                        st.metric(label="Calificación (20)", value=f"{grade_value:.2f}", delta_color=delta_color)
+                                    with c4:
+                                        st.write("") 
+                                        if st.button("Revisar Intento", key=f"review_{row['id']}", width='stretch'):
+                                            st.session_state.reviewing_attempt_id = row['id']; st.rerun()
+                        else:
+                            # --- VISTA DE TABLA PARA EL ESTUDIANTE ---
+                            df_for_student = paginated_df.copy()
+                            df_for_student.rename(columns={
+                                'student_name': 'Estudiante', 'variant_name': 'Unidad',
+                                'grade': 'Nota', 'score': 'Aciertos',
+                                'total_questions': 'Preguntas', 'timestamp': 'Fecha'
+                            }, inplace=True)
+                            df_for_student['Fecha'] = pd.to_datetime(df_for_student['Fecha']).dt.strftime('%Y-%m-%d %H:%M')
+                            df_for_student['Nota'] = df_for_student['Nota'].map('{:.2f}'.format)
+                            df_for_student['Puntaje'] = df_for_student['Aciertos'].astype(str) + '/' + df_for_student['Preguntas'].astype(str)
+                            
+                            display_columns = ['Estudiante', 'Unidad', 'Puntaje', 'Nota', 'Fecha']
+                            st.dataframe(df_for_student[display_columns], width='stretch', hide_index=True)
+                            #st.table(df_for_student[display_columns])
+                        
+                        #st.markdown("---")
+                        
+                        # --- CONTROLES DE PAGINACIÓN (COMÚN PARA AMBOS) ---
+                        if total_pages > 1:
+                            nav_cols = st.columns([1, 2, 1])
+                            with nav_cols[0]:
+                                if st.button("← Anterior", width='stretch', disabled=(st.session_state[page_key] <= 1)):
+                                    st.session_state[page_key] -= 1; st.rerun()
+                            with nav_cols[1]:
+                                st.write(f"<div style='text-align: center;'>Página {st.session_state[page_key]} de {total_pages}</div>", unsafe_allow_html=True)
+                            with nav_cols[2]:
+                                if st.button("Siguiente →", width='stretch', disabled=(st.session_state[page_key] >= total_pages)):
+                                    st.session_state[page_key] += 1; st.rerun()
 
 
 with tab_examen:
     if st.session_state.pagina == 'inicio':
+        st.subheader("Actividades formativas de refuerzo", divider=True)
         global_message = get_global_message()
         if global_message:
             st.info(f"{global_message}")
@@ -927,7 +1131,7 @@ with tab_examen:
                     else:
                         st.info("Esta asignatura no tiene unidades configuradas.")
 
-            nombre = st.text_input("Ingresa tu nombre:", key="input_nombre", value=st.session_state.nombre_estudiante)
+            nombre = st.text_input("Ingresa tu nombre, apellido y cédula:", key="input_nombre", value=st.session_state.nombre_estudiante, placeholder="Nombre Apellido (Cédula)", help="Después de tu nombre y apellido coloca tu número de cédula encerrado entre paréntesis")
             
             if st.button("Iniciar Actividad", type="primary", disabled=not is_selected_variant_active):
                 if nombre and selected_config_id:
@@ -981,13 +1185,28 @@ with tab_examen:
                     opciones_normalizadas[letra] = texto_limpio
                 opciones = opciones_normalizadas
             
-            if not st.session_state.respuesta_enviada:
-                resp_usr = st.radio("Respuesta:", opciones.keys(), format_func=lambda k: f"{k}: {opciones.get(k, '')}", key=f"r_{idx}")
+            resp_usr = st.radio("Respuesta:", opciones.keys(), format_func=lambda k: f"{k}: {opciones.get(k, '')}", key=f"r_{idx}", disabled=st.session_state.respuesta_enviada)
             
-            if st.form_submit_button("Enviar Respuesta", disabled=st.session_state.respuesta_enviada):
-                st.session_state.respuesta_enviada = True
+            is_last_question = (idx == num_preguntas - 1)
+            show_feedback = config.get('show_feedback', 1) == 1
+            
+            if show_feedback:
+                submit_label = "Enviar Respuesta"
+            else:
+                submit_label = "Siguiente Pregunta" if not is_last_question else "Ver Resultados"
+
+            if st.form_submit_button(submit_label, disabled=st.session_state.respuesta_enviada):
                 st.session_state.respuestas_usuario[idx] = resp_usr
-                if resp_usr == q_info.get('respuesta_correcta'): st.session_state.puntaje += 1
+                if resp_usr == q_info.get('respuesta_correcta'):
+                    st.session_state.puntaje += 1
+                
+                if show_feedback:
+                    st.session_state.respuesta_enviada = True
+                else:
+                    if is_last_question:
+                        st.session_state.pagina = 'resultados'
+                    else:
+                        st.session_state.pregunta_actual += 1
                 st.rerun()
 
         if st.session_state.respuesta_enviada:
@@ -1017,21 +1236,26 @@ with tab_examen:
         calif = (puntaje / num_preguntas) * 20 if num_preguntas > 0 else 0
         
         if 'results_saved' not in st.session_state:
+            # <<< ESTE BLOQUE CAMBIA
             save_result_to_db(
                 student_name=st.session_state.nombre_estudiante,
                 profile_name=config['profile_name'],
                 variant_name=config['variant_name'],
                 score=puntaje,
                 total_questions=num_preguntas,
-                grade=calif
+                grade=calif,
+                quiz_snapshot=st.session_state.quiz_generado, # <-- Nueva información
+                student_answers=st.session_state.respuestas_usuario # <-- Nueva información
             )
             st.session_state.results_saved = True
-            st.toast("¡Tu resultado ha sido guardado en el ranking!")
+            st.toast("¡Tu resultado ha sido guardado en el registro de participaciones!")
 
         c1, c2 = st.columns(2)
-        c1.metric("Respuestas Correctas", f"{puntaje} de {num_preguntas}")
-        c2.metric("Calificación (sobre 20)", f"{calif:.2f}")
+        c1.metric("Respuestas Correctas", f"{puntaje} de {num_preguntas}", border=True)
+        c2.metric("Calificación (sobre 20)", f"{calif:.2f}", border=True)
         if st.button("Volver al inicio"):
             reset_quiz_state()
 
+#st.markdown("---")
 st.caption("DEMAT-FEC-LUZ")
+
