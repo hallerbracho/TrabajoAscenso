@@ -1161,9 +1161,9 @@ with tab_examen:
                 with col11:
                     selected_quiz_profile = st.radio(
                         "**Elige la asignatura:**",
-                        available_quizzes,
-                        placeholder="Selecciona una asignatura...",
+                        available_quizzes,                        
                         key="student_profile_select",
+                        index=None,
                         on_change=lambda: st.session_state.pop('student_variant_select', None)
                     )
 
@@ -1184,10 +1184,8 @@ with tab_examen:
 
                             selected_config_id = st.radio(
                                 "**Elige la unidad de aprendizaje:**",
-                                options=variant_options.keys(),
-                                placeholder="Selecciona una unidad...",
-                                format_func=format_variant_label,
-                                index=None,
+                                options=variant_options.keys(),                                
+                                format_func=format_variant_label,                                
                                 key="student_variant_select"
                             )
                             
