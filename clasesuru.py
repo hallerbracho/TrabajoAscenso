@@ -1159,7 +1159,7 @@ with tab_examen:
                 col11, col22 = st.columns(2)
                 
                 with col11:
-                    selected_quiz_profile = st.selectbox(
+                    selected_quiz_profile = st.radio(
                         "**Elige la asignatura:**",
                         available_quizzes,
                         placeholder="Selecciona una asignatura...",
@@ -1182,11 +1182,12 @@ with tab_examen:
                                 is_active = active_status_map.get(config_id, 0)
                                 return f"{label} {' ' if is_active else '(_inactiva_)'}"
 
-                            selected_config_id = st.selectbox(
+                            selected_config_id = st.radio(
                                 "**Elige la unidad de aprendizaje:**",
                                 options=variant_options.keys(),
                                 placeholder="Selecciona una unidad...",
                                 format_func=format_variant_label,
+                                index=None,
                                 key="student_variant_select"
                             )
                             
