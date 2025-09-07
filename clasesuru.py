@@ -33,12 +33,24 @@ except (KeyError, Exception) as e:
     st.error(f"Error al configurar la autenticación de Google. Revisa los secretos. Error: {e}")
     st.stop()
 
+st.markdown(
+    """
+    <style>
+        section[data-testid="stSidebar"] {
+            width: 500px !important; # Set the width to your desired value
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 with st.sidebar:	
     #st.header("Opciones de Calendario")
     #st.image("https://uru.edu/wp-content/uploads/2023/02/uru-logo-maracaibo.png")
     st.image("https://uru.edu/wp-content/uploads/2023/02/uru-logo-maracaibo.png")
     st.subheader("Actividades formativas de refuerzo")
-    st.html("<p>Departamento de Matemática<br>Facultad Experimental de Ciencias<br>Universidad Rafael Urdaneta</p>")
+    st.markdown("Prof. Haller Bracho")
+    st.html("<p>Escuela de Telecomunicaciones y Computación<br>Facultad de Ingeniería<br>Universidad Rafael Urdaneta</p>")    
     #fecha2 = st.date_input("Calendario escolar", value="today", format="DD/MM/YYYY", width="stretch")
 
 # --- Constantes para la configuración de IA (sin cambios) ---
@@ -388,8 +400,10 @@ def clear_all_results_from_db():
 init_db()
 
 # --- CONFIGURACIÓN DE LA PÁGINA Y API ---
-st.set_page_config(page_title="Actividades de refuerzo", layout="centered")
-#st.set_page_config(page_title="Actividades de refuerzo", layout="wide")
+#st.set_page_config(page_title="Actividades de refuerzo", layout="centered")
+st.set_page_config(page_title="Actividades de refuerzo", layout="wide", initial_sidebar_state="auto", menu_items={
+        'Get Help': 'https://www.extremelycoolapp.com/help'
+    })
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 except Exception as e:
@@ -1104,7 +1118,7 @@ with tab_ranking:
                                     st.session_state[page_key] += 1; st.rerun()
 
 
-with tab_examen:
+with tab_examen:	
     # 1. INICIALIZAR ESTADO DE SESIÓN PARA TOKEN Y USUARIO
     if 'token' not in st.session_state: st.session_state.token = None
     if 'user_info' not in st.session_state: st.session_state.user_info = None
@@ -1143,7 +1157,8 @@ with tab_examen:
             user_info = st.session_state.user_info
             
             # Usar el nombre completo (clave 'name') y el email como identificador único
-            student_identifier = f"{user_info.get('name', 'N/A')} ({user_info.get('email', 'N/A')})"
+            student_identifier = f"{user_info.get('name', 'N/A')}"
+            #student_identifier = f"{user_info.get('name', 'N/A')} ({user_info.get('email', 'N/A')})"
             st.session_state.nombre_estudiante = student_identifier 
 
             st.subheader(f"Bienvenido, {user_info.get('name', 'Estudiante')}", divider=True)
@@ -1158,7 +1173,7 @@ with tab_examen:
             else:
                 col11, col22 = st.columns(2)
                 
-                with col11:
+                with col11:                    
                     selected_quiz_profile = st.radio(
                         "**Elige la asignatura:**",
                         available_quizzes,                        
