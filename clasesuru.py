@@ -1186,7 +1186,8 @@ with tab_examen:
                                 "**Elige la unidad de aprendizaje:**",
                                 options=variant_options.keys(),                                
                                 format_func=format_variant_label,                                
-                                key="student_variant_select"
+                                key="student_variant_select",
+                                index=None
                             )
                             
                             if selected_config_id:
