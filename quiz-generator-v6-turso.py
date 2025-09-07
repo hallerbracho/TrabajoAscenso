@@ -1101,6 +1101,7 @@ with tab_examen:
                     "**Elige la asignatura:**",
                     available_quizzes,
                     key="student_profile_select",
+                    index=None,
                     on_change=lambda: st.session_state.pop('student_variant_select', None)
                 )
 
@@ -1172,7 +1173,18 @@ with tab_examen:
         q_info = st.session_state.quiz_generado[idx]
         st.subheader(f"Actividad {idx + 1}/{num_preguntas}")
         st.caption(f"**Asignatura:** {config.get('asignatura', 'N/A')} ({config.get('variant_name', 'N/A')})")
-        st.markdown(f"{q_info['pregunta']}")
+        #st.markdown(f"{q_info['pregunta']}")
+        show_feedback_enabled = config.get('show_feedback', 1) == 1
+        pregunta_a_mostrar = q_info['pregunta']
+
+        if not show_feedback_enabled:
+            # Si la retroalimentación está desactivada, intenta mostrar solo la pregunta.
+            # Se asume que la pregunta es el último párrafo, separado por '\n\n'.
+            partes = pregunta_a_mostrar.split('\n\n')
+            if len(partes) > 1:
+                pregunta_a_mostrar = partes[-1]
+
+        st.markdown(f"{pregunta_a_mostrar}")
         
         with st.form(key=f"form_q_{idx}"):
             opciones = q_info.get('opciones', {})
