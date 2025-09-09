@@ -16,8 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY clasesluz.py .
 
 # Expone el puerto 8501, que es el puerto por defecto de Streamlit.
-EXPOSE 8501
+EXPOSE 8080
 
 # El comando para ejecutar la aplicación cuando se inicie el contenedor.
 # --server.address=0.0.0.0 permite que la aplicación sea accesible desde fuera del contenedor.
-CMD ["streamlit", "run", "clasesluz.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "clasesluz.py", "--server.port=8080", "--server.address=0.0.0.0"]
