@@ -95,6 +95,18 @@ Ahora, genera la lista de {num_preguntas} preguntas. Recuerda, tu respuesta debe
 
 # --- MODIFICADO: Funciones para interactuar con la Base de Datos (Turso) ---
 
+@st.cache_resource
+def get_db_client():
+    """Crea y retorna un cliente para Turso, cacheado por sesión."""
+    try:
+        db_url = st.secrets["turso"]["db_url"]
+        auth_token = st.secrets["turso"]["auth_token"]
+        return create_client_sync(url=db_url, auth_token=auth_token)
+    except (KeyError, Exception) as e:
+        st.error(f"Error conectando a la base de datos Turso: {e}. Asegúrate de configurar 'db_url' y 'auth_token' en los secretos de Streamlit.")
+        st.stop()
+        
+
 def create_turso_client():
     """Crea y retorna un cliente para la base de datos Turso usando secretos."""
     try:
@@ -112,7 +124,7 @@ def init_db():
     Inicializa la base de datos, crea las tablas si no existen y
     realiza migraciones de esquema necesarias, como añadir nuevas columnas.
     """
-    client = create_turso_client()
+    client = get_db_client()
     try:
         # 1. Ejecutar las creaciones de tablas estándar
         # NOTA: La tabla quiz_results ahora se crea con las nuevas columnas si no existe.
@@ -182,26 +194,26 @@ def init_db():
 
     except Exception as e:
         st.error(f"Error al inicializar o migrar la base de datos: {e}")
-    finally:
-        client.close()
+    #finally:
+        #client.close()
 
 @st.cache_data
 def get_global_setting(key, default_value=None):
     """Obtiene una configuración global desde la base de datos."""
-    client = create_turso_client()
+    client = get_db_client()
     rs = client.execute("SELECT value FROM global_settings WHERE key = ?", (key,))
-    client.close()
+    #client.close()
     return rs.rows[0][0] if rs.rows else default_value
 
 def save_global_setting(key, value):
     """Guarda o actualiza una configuración global en la base de datos."""
-    client = create_turso_client()
+    client = get_db_client()
     sql = """
     INSERT INTO global_settings (key, value) VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
     """
     client.execute(sql, (key, value))
-    client.close()
+    #client.close()
     get_global_setting.clear()
 
 def get_global_message():
@@ -213,25 +225,25 @@ def save_global_message(message):
 @st.cache_data
 def get_all_profiles():
     """Obtiene los nombres de todos los PERFILES PADRE de la DB."""
-    client = create_turso_client()
+    client = get_db_client()
     rs = client.execute("SELECT DISTINCT profile_name FROM quiz_configs ORDER BY profile_name")
-    client.close()
+    #client.close()
     return [row[0] for row in rs.rows]
 
 @st.cache_data
 def get_variants_for_profile(profile_name):
     """Obtiene todas las variantes (id, nombre) para un perfil padre dado."""
     if not profile_name: return []
-    client = create_turso_client()
+    client = get_db_client()
     rs = client.execute("SELECT id, variant_name FROM quiz_configs WHERE profile_name = ? ORDER BY variant_name", (profile_name,))
-    client.close()
+    #client.close()
     return rs.rows
 
 @st.cache_data
 def get_variants_with_status_for_profile(profile_name):
     """Obtiene variantes para un perfil, indicando si hay un quiz activo."""
     if not profile_name: return []
-    client = create_turso_client()
+    client = get_db_client()
     query = """
     SELECT c.id, c.variant_name, CASE WHEN q.id IS NOT NULL THEN 1 ELSE 0 END as is_active
     FROM quiz_configs c
@@ -239,15 +251,15 @@ def get_variants_with_status_for_profile(profile_name):
     WHERE c.profile_name = ? ORDER BY c.variant_name
     """
     rs = client.execute(query, (profile_name,))
-    client.close()
+    #client.close()
     return rs.rows
 
 @st.cache_data
 def load_config_from_db(config_id):
     """Carga una configuración específica (una variante) desde la DB usando su ID."""
-    client = create_turso_client()
+    client = get_db_client()
     rs = client.execute("SELECT * FROM quiz_configs WHERE id = ?", (config_id,))
-    client.close()
+    #client.close()
     if rs.rows:
         config_row = rs.rows[0]
         config = {col: config_row[idx] for idx, col in enumerate(rs.columns)}
@@ -257,7 +269,7 @@ def load_config_from_db(config_id):
 
 def save_config_to_db(profile_name, variant_name, asignatura, temas, num_preguntas, dificultad, show_feedback):
     """Guarda (inserta o actualiza) una configuración/variante en la DB."""
-    client = create_turso_client()
+    client = get_db_client()
     temas_json = json.dumps(temas)
     sql = """
     INSERT INTO quiz_configs (profile_name, variant_name, asignatura, temas, num_preguntas, dificultad, show_feedback)
@@ -270,7 +282,7 @@ def save_config_to_db(profile_name, variant_name, asignatura, temas, num_pregunt
         show_feedback=excluded.show_feedback
     """
     client.execute(sql, (profile_name, variant_name, asignatura, temas_json, num_preguntas, dificultad, int(show_feedback)))
-    client.close()
+    #client.close()
     get_all_profiles.clear()
     get_variants_for_profile.clear()
     load_config_from_db.clear()
@@ -279,9 +291,9 @@ def save_config_to_db(profile_name, variant_name, asignatura, temas, num_pregunt
 
 def delete_config_from_db(config_id):
     """Elimina una configuración/variante específica de la DB por su ID."""
-    client = create_turso_client()
+    client = get_db_client()
     client.execute("DELETE FROM quiz_configs WHERE id = ?", (config_id,))
-    client.close()
+    #client.close()
     get_all_profiles.clear()
     get_variants_for_profile.clear()
     load_config_from_db.clear()
@@ -290,7 +302,7 @@ def delete_config_from_db(config_id):
 
 def save_and_activate_quiz(config_id, quiz_data):
     """Guarda un nuevo quiz en la BD y lo activa, desactivando cualquier otro."""
-    client = create_turso_client()
+    client = get_db_client()
     quiz_data_json = json.dumps(quiz_data)
     
     statements = [
@@ -301,8 +313,8 @@ def save_and_activate_quiz(config_id, quiz_data):
         client.batch(statements)
     except Exception as e:
         st.error(f"Error en la base de datos al activar el quiz: {e}")
-    finally:
-        client.close()
+    #finally:
+        #client.close()
     
     get_active_quiz_for_config.clear()
     get_variants_with_status_for_profile.clear()
@@ -310,9 +322,9 @@ def save_and_activate_quiz(config_id, quiz_data):
 @st.cache_data
 def get_active_quiz_for_config(config_id):
     """Obtiene el quiz activo (JSON) para una configuración dada."""
-    client = create_turso_client()
+    client = get_db_client()
     rs = client.execute("SELECT quiz_data_json FROM generated_quizzes WHERE config_id = ? AND is_active = 1", (config_id,))
-    client.close()
+    #client.close()
     if rs.rows:
         return json.loads(rs.rows[0][0])
     return None
@@ -320,23 +332,23 @@ def get_active_quiz_for_config(config_id):
 @st.cache_data
 def get_latest_quiz_for_config(config_id):
     """Obtiene la última versión de un quiz generado para una configuración."""
-    client = create_turso_client()
+    client = get_db_client()
     rs = client.execute("SELECT quiz_data_json FROM generated_quizzes WHERE config_id = ? ORDER BY created_at DESC LIMIT 1", (config_id,))
-    client.close()
+    #client.close()
     if rs.rows:
         return json.loads(rs.rows[0][0])
     return None
 
 def check_if_any_quiz_exists(config_id):
     """Verifica si existe CUALQUIER quiz (activo o no) para una configuración."""
-    client = create_turso_client()
+    client = get_db_client()
     rs = client.execute("SELECT 1 FROM generated_quizzes WHERE config_id = ? LIMIT 1", (config_id,))
-    client.close()
+    #client.close()
     return bool(rs.rows)
 
 def set_quiz_activation_status(config_id, is_active):
     """Activa o desactiva la versión más reciente de un quiz."""
-    client = create_turso_client()
+    client = get_db_client()
     try:
         statements = [Statement("UPDATE generated_quizzes SET is_active = 0 WHERE config_id = ?", (config_id,))]
         if is_active:
@@ -349,15 +361,15 @@ def set_quiz_activation_status(config_id, is_active):
         client.batch(statements)
     except Exception as e:
         st.error(f"Error en la base de datos al cambiar el estado del quiz: {e}")
-    finally:
-        client.close()
+    #finally:
+        #client.close()
     
     get_active_quiz_for_config.clear()
     get_variants_with_status_for_profile.clear()
 
 def save_result_to_db(student_name, profile_name, variant_name, score, total_questions, grade, quiz_snapshot, student_answers):
     """Guarda el resultado de un quiz, incluyendo el snapshot y las respuestas."""
-    client = create_turso_client()
+    client = get_db_client()
     sql = """
     INSERT INTO quiz_results (
         student_name, profile_name, variant_name, score, total_questions, grade, timestamp,
@@ -372,38 +384,38 @@ def save_result_to_db(student_name, profile_name, variant_name, score, total_que
         student_name, profile_name, variant_name, score, total_questions, grade,
         now_in_venezuela.isoformat(), quiz_snapshot_json, student_answers_json
     ))
-    client.close()
+    #client.close()
     get_results_by_profile_as_df.clear()
 
 @st.cache_data
 def get_configs_for_profile_as_df(profile_name):
     """Obtiene todas las configuraciones de un perfil como un DataFrame de pandas."""
-    client = create_turso_client()
+    client = get_db_client()
     query = "SELECT variant_name, show_feedback FROM quiz_configs WHERE profile_name = ?"
     rs = client.execute(query, (profile_name,))
-    client.close()
+    #client.close()
     df = pd.DataFrame(rs.rows, columns=rs.columns)
     return df
     
 @st.cache_data
 def get_results_by_profile_as_df(profile_name):
     """Obtiene TODOS los resultados de un perfil padre específico."""
-    client = create_turso_client()
+    client = get_db_client()
     query = "SELECT * FROM quiz_results WHERE profile_name = ? ORDER BY timestamp DESC, grade DESC"
     rs = client.execute(query, (profile_name,))
-    client.close()
+    #client.close()
     df = pd.DataFrame(rs.rows, columns=rs.columns)
     return df
 
 def clear_all_results_from_db():
     """Elimina todos los registros de la tabla de resultados."""
-    client = create_turso_client()
+    client = get_db_client()
     statements = [
         Statement("DELETE FROM quiz_results"),
         Statement("DELETE FROM sqlite_sequence WHERE name='quiz_results'")
     ]
     client.batch(statements)
-    client.close()
+    #client.close()
     get_results_by_profile_as_df.clear()
 
 
@@ -932,85 +944,6 @@ def display_attempt_review(attempt_details):
         del st.session_state.reviewing_attempt_id
         st.rerun()
 
-def display_attempt_review(attempt_details):
-    """Muestra la vista detallada de un intento de quiz."""
-    student_name = attempt_details['student_name']
-    st.header(f"Revisando la actividad de: {student_name}")
-    st.caption(f"Realizada el: {pd.to_datetime(attempt_details['timestamp']).strftime('%Y-%m-%d %H:%M')}")
-    st.info("A continuación se muestra cada pregunta tal como la vio el estudiante, junto con su respuesta y la corrección.")
-
-    quiz_snapshot = json.loads(attempt_details['quiz_snapshot_json'])
-    student_answers = json.loads(attempt_details['student_answers_json'])
-
-    for idx, question_data in enumerate(quiz_snapshot):
-        with st.container(border=True):
-            st.subheader(f"Pregunta {idx + 1}")
-            st.markdown(question_data['pregunta'])
-
-            # Las claves de respuesta ahora se guardan como string '0', '1', etc.
-            student_answer_key = student_answers.get(str(idx)) 
-            correct_answer_key = question_data['respuesta_correcta']
-            
-            options = question_data.get('opciones', {})
-
-            st.markdown("---")
-            st.write("**Respuesta del estudiante:**")
-            if student_answer_key is None:
-                st.warning("El estudiante no respondió a esta pregunta.")
-            elif student_answer_key == correct_answer_key:
-                st.success(f"**{student_answer_key}:** {options.get(student_answer_key, 'Opción no encontrada')} (Correcta)")
-            else:
-                st.error(f"**{student_answer_key}:** {options.get(student_answer_key, 'Opción no encontrada')} (Incorrecta)")
-
-            st.write("**Respuesta correcta:**")
-            st.info(f"**{correct_answer_key}:** {options.get(correct_answer_key, 'Opción no encontrada')}")
-            
-            with st.expander("Ver explicación completa"):
-                st.markdown(question_data['explicacion'])
-    
-    if st.button("← Volver al ranking"):
-        del st.session_state.reviewing_attempt_id
-        st.rerun()
-
-# --- NUEVO BLOQUE 'with tab_ranking:' ---
-def display_attempt_review(attempt_details):
-    """Muestra la vista detallada de un intento de quiz."""
-    student_name = attempt_details['student_name']
-    st.header(f"Revisando la actividad de: {student_name}")
-    st.caption(f"Realizada el: {pd.to_datetime(attempt_details['timestamp']).strftime('%Y-%m-%d %H:%M')}")
-    st.info("A continuación se muestra cada pregunta tal como la vio el estudiante, junto con su respuesta y la corrección.")
-
-    quiz_snapshot = json.loads(attempt_details['quiz_snapshot_json'])
-    student_answers = json.loads(attempt_details['student_answers_json'])
-
-    for idx, question_data in enumerate(quiz_snapshot):
-        with st.container(border=True):
-            st.subheader(f"Pregunta {idx + 1}")
-            st.markdown(question_data['pregunta'])
-
-            student_answer_key = student_answers.get(str(idx)) 
-            correct_answer_key = question_data['respuesta_correcta']
-            options = question_data.get('opciones', {})
-
-            st.markdown("---")
-            st.write("**Respuesta del estudiante:**")
-            if student_answer_key is None:
-                st.warning("El estudiante no respondió a esta pregunta.")
-            elif student_answer_key == correct_answer_key:
-                st.success(f"**{student_answer_key}:** {options.get(student_answer_key, 'Opción no encontrada')} (Correcta)")
-            else:
-                st.error(f"**{student_answer_key}:** {options.get(student_answer_key, 'Opción no encontrada')} (Incorrecta)")
-
-            st.write("**Respuesta correcta:**")
-            st.info(f"**{correct_answer_key}:** {options.get(correct_answer_key, 'Opción no encontrada')}")
-            
-            with st.expander("Ver explicación completa"):
-                st.markdown(question_data['explicacion'])
-    
-    if st.button("← Volver al ranking"):
-        del st.session_state.reviewing_attempt_id
-        st.rerun()
-
 # --- BLOQUE 'with tab_ranking:' CON VISTAS CONDICIONALES ---
 
 @st.cache_data
@@ -1018,12 +951,35 @@ def convert_df_to_csv(df):
     """Convierte un DataFrame de pandas a un archivo CSV codificado en UTF-8."""
     return df.to_csv(index=True).encode('utf-8')
 
+
+@st.cache_data
+def calculate_gradebook(df, policy):
+    """
+    Toma el DataFrame de resultados y la política de calificación,
+    y devuelve el DataFrame procesado para el libro de calificaciones.
+    """
+    processed_df = df.copy()
+    processed_df['timestamp'] = pd.to_datetime(processed_df['timestamp'])
+
+    if policy == "Calificación más reciente":
+        final_grades_df = processed_df.sort_values('timestamp').groupby(['student_name', 'variant_name']).last().reset_index()
+    elif policy == "Promedio de calificaciones":
+        final_grades_df = processed_df.groupby(['student_name', 'variant_name'])['grade'].mean().reset_index()
+    else:  # "Calificación más alta" por defecto
+        final_grades_df = processed_df.sort_values('grade').groupby(['student_name', 'variant_name']).last().reset_index()
+
+    gradebook_view = final_grades_df.pivot_table(
+        index='student_name', columns='variant_name', values='grade'
+    )
+    return gradebook_view
+
+
 with tab_ranking:
     # 1. LÓGICA PARA MOSTRAR UNA REVISIÓN INDIVIDUAL (SÓLO PROFESOR)
     if 'reviewing_attempt_id' in st.session_state and st.session_state.password_correct:
-        client = create_turso_client()
+        client = get_db_client()
         rs = client.execute("SELECT * FROM quiz_results WHERE id = ?", (st.session_state.reviewing_attempt_id,))
-        client.close()
+        #client.close()
         if rs.rows:
             attempt_details = {col: rs.rows[0][idx] for idx, col in enumerate(rs.columns)}
             display_attempt_review(attempt_details)
@@ -1040,7 +996,7 @@ with tab_ranking:
             if st.button("Refrescar", width='stretch', help="Vuelve a cargar los resultados desde la base de datos."):
                 get_results_by_profile_as_df.clear(); st.toast("¡Registro actualizado!"); st.rerun()
 
-        client = create_turso_client(); rs = client.execute("SELECT DISTINCT profile_name FROM quiz_results ORDER BY profile_name"); client.close()
+        client = get_db_client(); rs = client.execute("SELECT DISTINCT profile_name FROM quiz_results ORDER BY profile_name"); #client.close()
         profiles_with_results = [row[0] for row in rs.rows]
 
         if not profiles_with_results:
@@ -1070,21 +1026,23 @@ with tab_ranking:
                                 help="Define cómo se consolidan múltiples intentos de un mismo estudiante en una sola nota."
                             )
                             
-                            processed_df = gradebook_data_df.copy()
-                            processed_df['timestamp'] = pd.to_datetime(processed_df['timestamp'])
+                            #processed_df = gradebook_data_df.copy()
+                            #processed_df['timestamp'] = pd.to_datetime(processed_df['timestamp'])
 
-                            if policy == "Calificación más reciente":
-                                final_grades_df = processed_df.sort_values('timestamp').groupby(['student_name', 'variant_name']).last().reset_index()
-                            elif policy == "Promedio de calificaciones":
-                                final_grades_df = processed_df.groupby(['student_name', 'variant_name'])['grade'].mean().reset_index()
-                            else: # "Calificación más alta" por defecto (LÓGICA CORREGIDA)
-                                final_grades_df = processed_df.sort_values('grade').groupby(['student_name', 'variant_name']).last().reset_index()
+                            #if policy == "Calificación más reciente":
+                                #final_grades_df = processed_df.sort_values('timestamp').groupby(['student_name', 'variant_name']).last().reset_index()
+                            #elif policy == "Promedio de calificaciones":
+                                #final_grades_df = processed_df.groupby(['student_name', 'variant_name'])['grade'].mean().reset_index()
+                            #else: # "Calificación más alta" por defecto (LÓGICA CORREGIDA)
+                                #final_grades_df = processed_df.sort_values('grade').groupby(['student_name', 'variant_name']).last().reset_index()
 
-                            gradebook_view = final_grades_df.pivot_table(
-                                index='student_name', columns='variant_name', values='grade'
-                            )
+                            #gradebook_view = final_grades_df.pivot_table(
+                                #index='student_name', columns='variant_name', values='grade'
+                            #)
+                            
+                            gradebook_view = calculate_gradebook(gradebook_data_df, policy)
 
-                            st.dataframe(gradebook_view.style.format("{:.2f}", na_rep='-').highlight_null(props="color: #666;"), use_container_width=True)
+                            st.dataframe(gradebook_view.style.format("{:.2f}", na_rep='-').highlight_null(props="color: #666;"), width='stretch')
                             
                             csv_data = convert_df_to_csv(gradebook_view)
                             st.download_button(
@@ -1172,7 +1130,7 @@ with tab_examen:
         result = oauth2.authorize_button(
             name="Iniciar Sesión con Google",
             icon="https://www.google.com.tw/favicon.ico",
-            use_container_width=True,
+            width='stretch',
             redirect_uri=REDIRECT_URI,
             scope="openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
         )
