@@ -47,10 +47,12 @@ with st.sidebar:
     #st.header("Opciones de Calendario")
     #st.image("https://uru.edu/wp-content/uploads/2023/02/uru-logo-maracaibo.png")
     st.image("https://luz.unir.edu.ve/wp-content/uploads/2024/04/escudo-Hor-gris-1024x427-1.png")
-    st.subheader("Actividades formativas de refuerzo")
+    st.subheader("Actividades formativas y de evaluación")
     st.markdown("Prof. Haller Bracho")
     st.html("<p>Departamento de Matemática<br>Facultad Experimental de Ciencias<br>La Universidad del Zulia</p>")    
+    #st.html("<p>Escuela de Telecomunicaciones<br>Facultad de Ingeniería<br>Universidad Rafael Urdaneta</p>")    
     #fecha2 = st.date_input("Calendario escolar", value="today", format="DD/MM/YYYY", width="stretch")
+    st.caption("Todas las actividades han sido generadas automáticamente por la IA y revisadas por el profesor siguiendo el enfoque _human-in-the-loop_.")
 
 # --- Constantes para la configuración de IA (sin cambios) ---
 DEFAULT_IA_MODEL = 'models/gemini-2.5-pro'
@@ -67,9 +69,9 @@ Tu única salida debe ser un bloque de código JSON 100% válido. No escribas na
 1.  **SALIDA FINAL:** Una lista de {num_preguntas} objetos JSON.
 2.  **CLAVES DEL OBJETO:** Cada objeto DEBE tener estas 4 claves: "pregunta", "opciones", "respuesta_correcta", "explicacion". Una y sólo una de las opciones debe ser la respuesta correcta.  Asegúrate de que cada párrafo esté separado por un doble espacio (una línea en blanco completa).
 3.  **ESTRUCTURA DE "pregunta":**
-    -   Párrafo 1: Breve explicación del concepto. **Palabras clave en negrita**. Incluir enlace `[Más información](URL_YOUTUBE_SEARCH)`.
-    -   Párrafo 2: Describe un escenario real donde se aplique el concepto y que esté relacionado directamente con la pregunta del párrafo 3. Importante para darle contexto a la pregunta. 
-    -   Párrafo 3: **La pregunta en sí, en negrita**.
+    -   Párrafo 1: Explicación muy breve del concepto. **Palabras clave en negrita**. Incluir enlace `[Más información](URL_YOUTUBE_SEARCH)`.
+    -   Párrafo 2: Describe la importancia del concepto. 
+    -   Párrafo 3: **La pregunta en sí, en negrita, ambientado en un escenario real**.
 4.  **ESTRUCTURA DE "opciones":** Objeto JSON con 4 claves: "A", "B", "C", "D".
 5.  **REGLA DE LATEX:** Usa LaTeX con signos de dólar ($...$). En el JSON, escapa todas las barras ´\´ con ´\\´. Ejemplo: ´\\frac{{1}}{{2}}´.
 6.  **REGLAS DE "explicacion":**
@@ -639,7 +641,7 @@ def admin_panel():
             asignatura = st.text_input("Nombre completo de la asignatura", value=config_data.get('asignatura', ''))
             temas_input = st.text_area("Temas (separados por comas)", value=", ".join(config_data.get('temas', [])), height=100)
             c1, c2 = st.columns(2)
-            num_preguntas = c1.number_input("Nº de preguntas", 3, 15, config_data.get('num_preguntas', 7))
+            num_preguntas = c1.number_input("Nº de preguntas", 3, 12, config_data.get('num_preguntas', 7))
             dificultad_options = ["fácil/intermedio", "intermedio/avanzado", "avanzado/difícil"]
             try:
                 current_dificultad_index = dificultad_options.index(config_data.get('dificultad', 'fácil/intermedio'))
@@ -1275,7 +1277,7 @@ with tab_examen:
                 # Si la pregunta tiene más de un párrafo (idealmente 3),
                 # se unen los dos últimos para mostrarlos.
                 if len(partes) > 1:
-                    pregunta_a_mostrar = '\n\n'.join(partes[-2:])
+                    pregunta_a_mostrar = '\n\n'.join(partes[-1:])
             st.markdown(f"{pregunta_a_mostrar}")
             
             with st.form(key=f"form_q_{idx}"):
