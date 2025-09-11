@@ -1320,7 +1320,7 @@ with tab_examen:
                 if elegida == correcta: st.success(f"¡Correcto! La respuesta es la **{correcta}**.")
                 else: st.error(f"**Incorrecto**. La respuesta correcta era **{correcta}**: {opciones.get(correcta, 'N/A')}")
                 
-                st.info(f"**Explicación:**\n{q_info.get('explicacion', 'No hay explicación disponible.')}")
+                st.info(f"**Explicación:**\n\n{q_info.get('explicacion', 'No hay explicación disponible.')}")
                 
                 if idx < num_preguntas - 1:
                     if st.button("Siguiente Pregunta"):
