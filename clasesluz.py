@@ -1290,7 +1290,7 @@ with tab_examen:
                         opciones_normalizadas[letra] = texto_limpio
                     opciones = opciones_normalizadas
                 
-                resp_usr = st.radio("Respuesta:", opciones.keys(), format_func=lambda k: f"{k}: {opciones.get(k, '')}", key=f"r_{idx}", disabled=st.session_state.respuesta_enviada)
+                resp_usr = st.radio("Respuesta:", opciones.keys(), index=None, format_func=lambda k: f"{k}: {opciones.get(k, '')}", key=f"r_{idx}", disabled=st.session_state.respuesta_enviada)
                 
                 is_last_question = (idx == num_preguntas - 1)
                 
