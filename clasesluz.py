@@ -977,6 +977,16 @@ def calculate_gradebook(df, policy):
 
 
 with tab_ranking:
+    #if st.session_state.get('pagina') == 'quiz':
+        #with st.container(border=True):
+            #col_text, col_button = st.columns([3, 1])
+            #with col_text:
+                #st.caption("¡Cuidado! Tienes una actividad en progreso. Si sales, tu progreso no se guardará.")
+            #with col_button:
+                #if st.button("Salir", type="primary", use_container_width=True):
+                    #reset_quiz_state()
+        #st.divider()
+        
     # 1. LÓGICA PARA MOSTRAR UNA REVISIÓN INDIVIDUAL (SÓLO PROFESOR)
     if 'reviewing_attempt_id' in st.session_state and st.session_state.password_correct:
         client = get_db_client()
@@ -995,8 +1005,10 @@ with tab_ranking:
         with col_title:
             st.subheader("Registro de participaciones", anchor=False)
         with col_button:
-            if st.button("Refrescar", width='stretch', help="Vuelve a cargar los resultados desde la base de datos."):
-                get_results_by_profile_as_df.clear(); st.toast("¡Registro actualizado!"); st.rerun()
+            if st.button("Refrescar", width='stretch', help="Vuelve a cargar los resultados desde la base de datos y resetea cualquier quiz activo."):
+            	reset_quiz_state(); get_results_by_profile_as_df.clear(); st.toast("¡Registro actualizado!"); st.rerun()
+		
+			
 
         client = get_db_client(); rs = client.execute("SELECT DISTINCT profile_name FROM quiz_results ORDER BY profile_name"); #client.close()
         profiles_with_results = [row[0] for row in rs.rows]
@@ -1312,7 +1324,10 @@ with tab_examen:
                         else:
                             st.session_state.pregunta_actual += 1
                     st.rerun()
-
+                    
+            #if st.button("Cancelar y volver al inicio", type="secondary"):
+            	#reset_quiz_state()
+            
             if st.session_state.respuesta_enviada:
                 correcta = q_info.get('respuesta_correcta')
                 elegida = st.session_state.respuestas_usuario.get(idx)
