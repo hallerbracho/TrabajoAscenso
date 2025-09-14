@@ -1376,5 +1376,5 @@ with tab_examen:
                 reset_quiz_state()
 
 #st.markdown("---")
-st.caption("DEMAT-FEC-LUZ")
+st.caption("Versión alpha-1.0")
 
