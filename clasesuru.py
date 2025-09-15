@@ -1103,7 +1103,7 @@ with tab_ranking:
                                     with c3:
                                         grade_value = row['grade']
                                         delta_color = "normal" if grade_value >= 9.5 else "inverse"
-                                        st.metric(label="Calificación (20)", value=f"{grade_value:.2f}", delta_color=delta_color)
+                                        st.metric(label="Calificación", value=f"{grade_value:.2f}", delta_color=delta_color)
                                     with c4:
                                         st.write("") 
                                         if st.button("Revisar Intento", key=f"review_{row['id']}", width='stretch'):
@@ -1353,7 +1353,7 @@ with tab_examen:
             puntaje = st.session_state.puntaje
             config = st.session_state.config_actual_quiz
             num_preguntas = config['num_preguntas']
-            calif = (puntaje / num_preguntas) * 20 if num_preguntas > 0 else 0
+            calif = (puntaje / num_preguntas) * 19 if num_preguntas > 0 else 0
             
             if 'results_saved' not in st.session_state:
                 save_result_to_db(
@@ -1371,10 +1371,11 @@ with tab_examen:
 
             c1, c2 = st.columns(2)
             c1.metric("Respuestas Correctas", f"{puntaje} de {num_preguntas}", border=True)
-            c2.metric("Calificación (sobre 20)", f"{calif:.2f}", border=True)
+            c2.metric("Calificación", f"{calif:.2f}", border=True)
             if st.button("Volver al inicio"):
                 reset_quiz_state()
 
 #st.markdown("---")
 st.caption("Versión alpha-1.0")
+#st.caption("DEMAT-FEC-LUZ")
 
