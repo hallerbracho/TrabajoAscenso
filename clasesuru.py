@@ -1003,7 +1003,7 @@ with tab_ranking:
     else:
         col_title, col_button = st.columns([4, 1])
         with col_title:
-            st.subheader("Registro de participaciones", anchor=False)
+            st.subheader("Participaciones por asignatura", anchor=False)
         with col_button:
             if st.button("Refrescar", width='stretch', help="Vuelve a cargar los resultados desde la base de datos y resetea cualquier quiz activo."):
             	reset_quiz_state(); get_results_by_profile_as_df.clear(); st.toast("¡Registro actualizado!"); st.rerun()
