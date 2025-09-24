@@ -3,3 +3,4 @@ google.generativeai
 pandas
 libsql-client
 streamlit-oauth
+streamlit-cookies-manager
