@@ -1184,7 +1184,7 @@ with tab_examen:
             if not available_quizzes:
                 st.warning("Aún no hay actividades configuradas. Pídele a tu profesor que cree una.")
             else:
-                col11, col22 = st.columns(2)
+                col11, col22 = st.columns([1,1])
                 
                 with col11:                    
                     selected_quiz_profile = st.radio(
@@ -1245,6 +1245,10 @@ with tab_examen:
                             if quiz_data:
                                 time.sleep(2)
                                 random.shuffle(quiz_data)
+                                
+                                num_a_presentar = config['num_preguntas']
+                                quiz_subset = quiz_data[:num_a_presentar]
+                                
                                 shuffled_quiz = [shuffle_question_options(q) for q in quiz_data]
                                 st.session_state.quiz_generado = shuffled_quiz
                                 
@@ -1352,7 +1356,8 @@ with tab_examen:
             st.header("Resultados Finales")
             puntaje = st.session_state.puntaje
             config = st.session_state.config_actual_quiz
-            num_preguntas = config['num_preguntas']
+            #num_preguntas = config['num_preguntas']
+            num_preguntas = len(st.session_state.quiz_generado)
             calif = (puntaje / num_preguntas) * 19 if num_preguntas > 0 else 0
             
             if 'results_saved' not in st.session_state:
