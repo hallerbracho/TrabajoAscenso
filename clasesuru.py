@@ -1249,7 +1249,8 @@ with tab_examen:
                                 num_a_presentar = config['num_preguntas']
                                 quiz_subset = quiz_data[:num_a_presentar]
                                 
-                                shuffled_quiz = [shuffle_question_options(q) for q in quiz_data]
+                                #shuffled_quiz = [shuffle_question_options(q) for q in quiz_data]
+                                shuffled_quiz = [shuffle_question_options(q) for q in quiz_subset]
                                 st.session_state.quiz_generado = shuffled_quiz
                                 
                                 st.session_state.pagina = 'quiz'
