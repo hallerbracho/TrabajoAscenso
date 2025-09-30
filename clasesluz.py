@@ -1003,7 +1003,7 @@ with tab_ranking:
     else:
         col_title, col_button = st.columns([4, 1])
         with col_title:
-            st.subheader("Registro de participaciones", anchor=False)
+            st.subheader("Participaciones por asignatura", anchor=False)
         with col_button:
             if st.button("Refrescar", width='stretch', help="Vuelve a cargar los resultados desde la base de datos y resetea cualquier quiz activo."):
             	reset_quiz_state(); get_results_by_profile_as_df.clear(); st.toast("¡Registro actualizado!"); st.rerun()
@@ -1184,7 +1184,7 @@ with tab_examen:
             if not available_quizzes:
                 st.warning("Aún no hay actividades configuradas. Pídele a tu profesor que cree una.")
             else:
-                col11, col22 = st.columns(2)
+                col11, col22 = st.columns([1,1])
                 
                 with col11:                    
                     selected_quiz_profile = st.radio(
@@ -1245,7 +1245,12 @@ with tab_examen:
                             if quiz_data:
                                 time.sleep(2)
                                 random.shuffle(quiz_data)
-                                shuffled_quiz = [shuffle_question_options(q) for q in quiz_data]
+                                
+                                num_a_presentar = config['num_preguntas']
+                                quiz_subset = quiz_data[:num_a_presentar]
+                                
+                                #shuffled_quiz = [shuffle_question_options(q) for q in quiz_data]
+                                shuffled_quiz = [shuffle_question_options(q) for q in quiz_subset]
                                 st.session_state.quiz_generado = shuffled_quiz
                                 
                                 st.session_state.pagina = 'quiz'
@@ -1352,7 +1357,8 @@ with tab_examen:
             st.header("Resultados Finales")
             puntaje = st.session_state.puntaje
             config = st.session_state.config_actual_quiz
-            num_preguntas = config['num_preguntas']
+            #num_preguntas = config['num_preguntas']
+            num_preguntas = len(st.session_state.quiz_generado)
             calif = (puntaje / num_preguntas) * 19 if num_preguntas > 0 else 0
             
             if 'results_saved' not in st.session_state:
@@ -1376,5 +1382,6 @@ with tab_examen:
                 reset_quiz_state()
 
 #st.markdown("---")
-st.caption("DEMAT-FEC-LUZ")
+st.caption("Versión alpha-1.0")
+#st.caption("DEMAT-FEC-LUZ")
 
