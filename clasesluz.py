@@ -1246,7 +1246,6 @@ with tab_examen:
                                 time.sleep(2)
 								if not config.get('show_feedback', 1):
 									random.shuffle(quiz_data)
-                                
                                 num_a_presentar = config['num_preguntas']
                                 quiz_subset = quiz_data[:num_a_presentar]
                                 
