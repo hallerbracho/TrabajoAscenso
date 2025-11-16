@@ -1244,7 +1244,7 @@ with tab_examen:
                             
                             if quiz_data:
                                 time.sleep(2)
-                                random.shuffle(quiz_data)
+                                if not config.get('show_feedback', 1): random.shuffle(quiz_data)
                                 
                                 num_a_presentar = config['num_preguntas']
                                 quiz_subset = quiz_data[:num_a_presentar]
@@ -1382,6 +1382,6 @@ with tab_examen:
                 reset_quiz_state()
 
 #st.markdown("---")
-st.caption("Versión alpha-1.0")
+st.caption("Versión alpha-1.1")
 #st.caption("DEMAT-FEC-LUZ")
 
