@@ -36,27 +36,59 @@ except (KeyError, Exception) as e:
     st.stop()
 
 # Renderizado Condicional del Sidebar
-if st.session_state.get('pagina') == 'quiz':
-    st.markdown(
-        """
-        <style>
-            [data-testid="collapsedControl"] { display: none; }
-            section[data-testid="stSidebar"] { display: none !important; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-else:
-    st.markdown(
-        """
-        <style>
-            section[data-testid="stSidebar"] {
-                width: 380px !important; # Set the width to your desired value
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+#if st.session_state.get('pagina') == 'quiz':
+#    st.markdown(
+#        """
+#        <style>
+#            [data-testid="collapsedControl"] { display: none; }
+#            section[data-testid="stSidebar"] { display: none !important; }
+#        </style>
+#        """,
+#        unsafe_allow_html=True,
+#    )
+#else:
+#    st.markdown(
+#        """
+#        <style>
+#            section[data-testid="stSidebar"] {
+#                width: 380px !important; # Set the width to your desired value
+#            }
+#        </style>
+#        """,
+#        unsafe_allow_html=True,
+#    )
+
+ST_STYLE = """
+<style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stApp { background-color: #ffffff; color: #111111; }
+    
+    /* --- ESTILO TIPO IDE PARA EL TEXTAREA --- */
+    div[data-testid="stTextArea"] textarea { 
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important; 
+        font-size: 12px !important;  /* Fuente más pequeña */
+        line-height: 1.5 !important;
+        background-color: #1e1e1e !important; /* Fondo oscuro tipo VS Code */
+        color: #d4d4d4 !important; /* Texto claro */
+    }
+    
+    .stButton>button { border-radius: 4px; border: 1px solid #ccc; width: 100%; }
+    .stButton>button:hover { border-color: #333; color: #333; }
+    
+    section[data-testid="stSidebar"] {
+            width: 440px !important; # Set the width to your desired value            
+        }
+        
+    .block-container {
+        max-width: 800px !important; /* <--- AJUSTA ESTE VALOR (ej. 800px, 1000px, 60%) */
+        padding-top: 3rem !important;
+        padding-bottom: 3rem !important;
+    }
+        
+</style>
+"""
+st.markdown(ST_STYLE, unsafe_allow_html=True)
 
 with st.sidebar:	
     #st.header("Opciones de Calendario")
